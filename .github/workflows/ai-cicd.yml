@@ -420,6 +420,7 @@ jobs:
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
+      attestations: write
       id-token: write
       packages: write
 
