@@ -27,7 +27,7 @@ Pipeline flow:
 3. Build application.
 4. Run unit tests.
 5. Build Docker image.
-6. Push image to Docker Hub or AWS ECR.
+6. Push image to GHCR by default, or Docker Hub / AWS ECR when selected manually.
 7. Deploy to Dev.
 8. Deploy to Test / QA.
 9. Manual production approval.
@@ -36,26 +36,26 @@ Pipeline flow:
 
 AI and security integrations:
 
-| Purpose | Tool |
-| --- | --- |
+| Purpose | AI Tool |
+| ---------------------------- | ---------------------------------- |
 | Code suggestion | GitHub Copilot |
-| Code review | ChatGPT / Codex through `OPENAI_API_KEY` |
-| Vulnerability fix suggestion | Trivy in the workflow, with Snyk AI or GitHub Advanced Security optional |
+| Code review | ChatGPT / Codex |
+| Vulnerability fix suggestion | Snyk AI / GitHub Advanced Security |
 | Test case generation | Codex / Copilot |
-| Log analysis | ChatGPT through `OPENAI_API_KEY` |
+| Log analysis | ChatGPT / AWS Q Developer |
 | Pipeline error fixing | ChatGPT / Codex |
 
-Required repository secrets:
+Required repository secret for Kubernetes deployment:
 
 - `KUBE_CONFIG_B64`: base64-encoded kubeconfig for the remote Kubernetes cluster.
-- `DOCKERHUB_USERNAME`: Docker Hub username.
-- `DOCKERHUB_TOKEN`: Docker Hub access token.
 
 Optional repository secrets and variables:
 
 - `OPENAI_API_KEY`: enables AI code review and AI log analysis.
 - `OPENAI_MODEL`: repository variable for the OpenAI model, defaults to `gpt-4.1-mini`.
-- `AWS_ACCOUNT_ID`, `AWS_REGION`, `AWS_ROLE_TO_ASSUME`: required only when pushing to AWS ECR.
+- `SNYK_TOKEN`: enables the Snyk AI vulnerability suggestion stage.
+- `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`: required only when manually selecting Docker Hub.
+- `AWS_ACCOUNT_ID`, `AWS_REGION`, `AWS_ROLE_TO_ASSUME`: required only when manually selecting AWS ECR.
 
 Create `KUBE_CONFIG_B64` from PowerShell:
 
