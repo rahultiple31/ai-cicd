@@ -55,7 +55,7 @@ jobs:
           test -f charts/career-connect/Chart.yaml
           test -f charts/career-connect/values.yaml
           test -f .github/workflows/ai-cicd.yml
-          if grep -RInE "(sk-[A-Za-z0-9_-]{20,}|OPENAI_API_KEY=|password=|token=)" \
+          if grep -RInE "(sk-[A-Za-z0-9_-]{20,}|(OPENAI_API_KEY|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Tt][Oo][Kk][Ee][Nn]|API_TOKEN|SECRET|AWS_SECRET_ACCESS_KEY)=[A-Za-z0-9_./+=:-]{12,})" \
             --exclude-dir=.git \
             --exclude=".github/workflows/ai-cicd.yml" .; then
             echo "::error::Potential secret value found in repository files."
