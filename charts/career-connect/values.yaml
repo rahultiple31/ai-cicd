@@ -11,20 +11,25 @@ fullnameOverride: ""
 
 serviceAccount:
   create: true
-  automount: true
+  automount: false
   annotations: {}
   name: ""
 
 podAnnotations: {}
 podLabels: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  fsGroup: 101
+  fsGroupChangePolicy: OnRootMismatch
+  runAsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
       - ALL
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 101
 
