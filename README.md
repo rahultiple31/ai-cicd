@@ -23,27 +23,45 @@ The main GitHub Actions pipeline is `.github/workflows/ai-cicd.yml`.
 Pipeline flow:
 
 1. Developer code push to GitHub.
-2. AI code review and security scan.
-3. Build application.
-4. Run unit tests.
-5. Build Docker image.
-6. Push image to GHCR by default, or Docker Hub / AWS ECR when selected manually.
-7. Deploy to Dev.
-8. Deploy to Test / QA.
-9. Manual production approval.
-10. Deploy to Production.
-11. AI log analysis and monitoring.
+2. Enterprise governance checks and OpenAI risk assessment.
+3. AI code review and security scan.
+4. OpenAI security remediation advisor.
+5. Build application.
+6. Run unit tests and OpenAI test generation.
+7. Build Docker image with SBOM and provenance.
+8. Push image to GHCR by default, or Docker Hub / AWS ECR when selected manually.
+9. OpenAI production readiness report.
+10. Deploy to Dev.
+11. Deploy to Test / QA.
+12. Manual production approval.
+13. Deploy to Production.
+14. OpenAI log analysis and monitoring.
 
 AI and security integrations:
 
 | Purpose | AI Tool |
 | ---------------------------- | ---------------------------------- |
 | Code suggestion | GitHub Copilot |
-| Code review | ChatGPT / Codex |
+| Code review | ChatGPT / Codex using `OPENAI_API_KEY` |
 | Vulnerability fix suggestion | Snyk AI / GitHub Advanced Security |
-| Test case generation | Codex / Copilot |
-| Log analysis | ChatGPT / AWS Q Developer |
-| Pipeline error fixing | ChatGPT / Codex |
+| Test case generation | Codex / Copilot, plus OpenAI-generated CI test ideas |
+| Log analysis | ChatGPT / AWS Q Developer using production logs |
+| Pipeline error fixing | ChatGPT / Codex with uploaded guidance artifacts |
+
+Enterprise controls in the workflow:
+
+- Least-privilege GitHub token permissions.
+- Serialized pipeline runs per branch with `concurrency`.
+- Repository policy checks for required deployment files and accidental secret patterns.
+- OpenAI enterprise release risk report.
+- OpenAI security remediation report.
+- Trivy source scan as a blocking gate.
+- Trivy image scan as a reporting gate.
+- Docker image SBOM and provenance attestations.
+- Helm chart linting before image build.
+- Deployment preflight that skips Kubernetes deployment cleanly when `KUBE_CONFIG_B64` is missing.
+- Dev, QA, and production rollout checks with smoke-test pod inspection.
+- GitHub environment approval before production.
 
 Required repository secret for Kubernetes deployment:
 
@@ -65,6 +83,15 @@ Create `KUBE_CONFIG_B64` from PowerShell:
 
 Create GitHub environments named `dev`, `qa`, `production-approval`, and `production`.
 Add required reviewers to the `production-approval` environment to enable the manual approval gate.
+
+Useful workflow artifacts:
+
+- `enterprise-governance`: policy output and OpenAI release risk report.
+- `ai-code-review`: AI tool map and OpenAI code review report.
+- `openai-security-remediation`: OpenAI security hardening recommendations.
+- `generated-test-ideas`: OpenAI/Codex-style enterprise test ideas.
+- `enterprise-release-readiness`: production readiness and rollback guidance.
+- `ai-log-analysis-monitoring`: production logs and OpenAI log analysis after production deploy.
 
 ## Legacy Remote Deploy Workflow
 
