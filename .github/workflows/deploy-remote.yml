@@ -51,9 +51,15 @@ jobs:
         uses: azure/setup-kubectl@v4
 
       - name: Configure remote kubeconfig
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
         run: |
+          if [ -z "$KUBE_CONFIG_B64" ]; then
+            echo "::error::Missing required repository secret KUBE_CONFIG_B64 for the remote Kubernetes cluster."
+            exit 1
+          fi
           mkdir -p "$HOME/.kube"
-          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > "$HOME/.kube/config"
+          echo "$KUBE_CONFIG_B64" | base64 -d > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
 
       - name: Configure image pull secret
