@@ -95,7 +95,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Trivy filesystem vulnerability scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
           scan-ref: .
@@ -225,7 +225,7 @@ jobs:
           tags: ${{ steps.image.outputs.repository }}:${{ steps.image.outputs.tag }}
 
       - name: Trivy image vulnerability scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: ${{ steps.image.outputs.repository }}:${{ steps.image.outputs.tag }}
           format: table
