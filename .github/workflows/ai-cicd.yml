@@ -41,8 +41,9 @@ jobs:
       - name: AI code review with ChatGPT or Codex
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
         run: |
+          OPENAI_MODEL="${OPENAI_MODEL:-gpt-4.1-mini}"
           if [ -z "$OPENAI_API_KEY" ]; then
             echo "OPENAI_API_KEY is not configured. Skipping AI code review."
             exit 0
@@ -435,8 +436,9 @@ jobs:
       - name: AI log analysis with ChatGPT
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
         run: |
+          OPENAI_MODEL="${OPENAI_MODEL:-gpt-4.1-mini}"
           if [ -z "$OPENAI_API_KEY" ] || [ ! -s production-logs.txt ]; then
             echo "AI log analysis skipped because OPENAI_API_KEY or logs are unavailable."
             exit 0
