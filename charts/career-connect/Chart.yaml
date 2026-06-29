@@ -1,0 +1,6 @@
+apiVersion: v2
+name: career-connect
+description: Dual Linkdin and Nakari career website
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

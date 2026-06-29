@@ -1,0 +1,87 @@
+name: Deploy Career Connect
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  RELEASE_NAME: career-connect
+  CHART_PATH: ./charts/career-connect
+  KUBE_NAMESPACE: career-connect
+
+jobs:
+  deploy:
+    name: Build and deploy to remote Kubernetes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare image name
+        id: image
+        run: |
+          IMAGE_REPOSITORY="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "repository=${IMAGE_REPOSITORY}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.repository }}:${{ steps.image.outputs.tag }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure remote kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Configure image pull secret
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          if [ -n "$GHCR_USERNAME" ] && [ -n "$GHCR_TOKEN" ]; then
+            kubectl create namespace "$KUBE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+            kubectl create secret docker-registry ghcr-pull-secret \
+              --namespace "$KUBE_NAMESPACE" \
+              --docker-server=ghcr.io \
+              --docker-username="$GHCR_USERNAME" \
+              --docker-password="$GHCR_TOKEN" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            echo "HELM_PULL_SECRET=--set imagePullSecrets[0].name=ghcr-pull-secret" >> "$GITHUB_ENV"
+          fi
+
+      - name: Deploy Helm chart
+        run: |
+          helm upgrade --install "$RELEASE_NAME" "$CHART_PATH" \
+            --namespace "$KUBE_NAMESPACE" \
+            --create-namespace \
+            --set image.repository="${{ steps.image.outputs.repository }}" \
+            --set image.tag="${{ steps.image.outputs.tag }}" \
+            --set image.pullPolicy=IfNotPresent \
+            $HELM_PULL_SECRET
+
+      - name: Show rollout status
+        run: |
+          kubectl rollout status "deployment/${RELEASE_NAME}" --namespace "$KUBE_NAMESPACE" --timeout=180s

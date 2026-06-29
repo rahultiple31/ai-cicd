@@ -1,0 +1,7 @@
+The Career Connect website has been installed.
+
+Run this command to open it locally:
+  kubectl port-forward svc/{{ include "career-connect.fullname" . }} 8080:{{ .Values.service.port }}
+
+Then browse:
+  http://127.0.0.1:8080

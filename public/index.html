@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Career Connect Sites</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#linkdin" aria-label="Career Connect home">
+        <span class="brand-mark">cc</span>
+        <span>Career Connect</span>
+      </a>
+      <nav class="site-switcher" aria-label="Website selector">
+        <a href="#linkdin" class="switch-link active" data-view-link="linkdin">Linkdin</a>
+        <a href="#nakari" class="switch-link" data-view-link="nakari">Nakari</a>
+      </nav>
+      <button class="post-button" type="button">Post a Job</button>
+    </header>
+
+    <main>
+      <section class="site-view active" id="linkdin" data-view="linkdin" aria-labelledby="linkdin-title">
+        <aside class="profile-panel">
+          <div class="profile-cover"></div>
+          <div class="avatar" aria-hidden="true">AR</div>
+          <h1 id="linkdin-title">Linkdin Professional Network</h1>
+          <p class="muted">Build your profile, grow trusted connections, and discover high-signal career opportunities.</p>
+          <dl class="profile-stats">
+            <div>
+              <dt>Profile views</dt>
+              <dd>1,284</dd>
+            </div>
+            <div>
+              <dt>Connections</dt>
+              <dd>8,430</dd>
+            </div>
+            <div>
+              <dt>Saved jobs</dt>
+              <dd>42</dd>
+            </div>
+          </dl>
+        </aside>
+
+        <section class="feed-column" aria-label="Professional feed">
+          <form class="composer">
+            <label for="post-update">Share an update</label>
+            <div class="composer-row">
+              <input id="post-update" type="text" placeholder="Talk about hiring, skills, projects, or milestones">
+              <button type="button">Publish</button>
+            </div>
+          </form>
+
+          <article class="feed-card">
+            <div class="feed-head">
+              <div class="mini-avatar teal" aria-hidden="true">MN</div>
+              <div>
+                <h2>Meera Nair</h2>
+                <p>Talent Partner at CloudWorks</p>
+              </div>
+            </div>
+            <p>We are opening senior frontend roles for teams building real-time hiring workflows. Strong React, accessibility, and product sense matter most.</p>
+            <div class="visual-strip network-visual" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <div class="feed-actions">
+              <button type="button">Like</button>
+              <button type="button">Comment</button>
+              <button type="button">Share</button>
+            </div>
+          </article>
+
+          <article class="feed-card">
+            <div class="feed-head">
+              <div class="mini-avatar coral" aria-hidden="true">DV</div>
+              <div>
+                <h2>Dev Verma</h2>
+                <p>Engineering Manager at FinStack</p>
+              </div>
+            </div>
+            <p>Interview tip: bring a short story about a system you improved. Clear context, tradeoffs, and outcome beat memorized answers.</p>
+            <div class="skill-cloud" aria-label="Trending skills">
+              <span>System Design</span>
+              <span>TypeScript</span>
+              <span>CI/CD</span>
+              <span>Kubernetes</span>
+            </div>
+          </article>
+        </section>
+
+        <aside class="insights-panel">
+          <section>
+            <h2>Hiring Now</h2>
+            <ul class="compact-list">
+              <li><strong>Platform Engineer</strong><span>Bengaluru - Remote</span></li>
+              <li><strong>Product Designer</strong><span>Pune - Hybrid</span></li>
+              <li><strong>Data Analyst</strong><span>Gurugram - On-site</span></li>
+            </ul>
+          </section>
+          <section>
+            <h2>People You May Know</h2>
+            <div class="people-row">
+              <div class="mini-avatar yellow" aria-hidden="true">PS</div>
+              <div><strong>Priya Shah</strong><span>Recruiter</span></div>
+              <button type="button">Connect</button>
+            </div>
+            <div class="people-row">
+              <div class="mini-avatar blue" aria-hidden="true">RK</div>
+              <div><strong>Rahul Kumar</strong><span>DevOps Lead</span></div>
+              <button type="button">Connect</button>
+            </div>
+          </section>
+        </aside>
+      </section>
+
+      <section class="site-view" id="nakari" data-view="nakari" aria-labelledby="nakari-title">
+        <section class="search-hero">
+          <div>
+            <p class="eyebrow">Nakari Job Portal</p>
+            <h1 id="nakari-title">Find the role that fits your next move</h1>
+            <p class="muted">Search fresh jobs, compare salaries, and apply to verified openings from one focused workspace.</p>
+          </div>
+          <form class="job-search">
+            <label for="keywords">Keywords</label>
+            <input id="keywords" type="search" placeholder="Role, skill, or company">
+            <label for="location">Location</label>
+            <input id="location" type="search" placeholder="City or remote">
+            <button type="button">Search Jobs</button>
+          </form>
+        </section>
+
+        <section class="job-layout">
+          <aside class="filter-panel" aria-label="Job filters">
+            <h2>Filters</h2>
+            <label><input type="checkbox" checked> Remote friendly</label>
+            <label><input type="checkbox"> Easy apply</label>
+            <label><input type="checkbox"> Fresher jobs</label>
+            <label for="salary">Minimum salary</label>
+            <input id="salary" type="range" min="3" max="40" value="14">
+            <div class="range-caption">14 LPA and above</div>
+          </aside>
+
+          <section class="jobs-column" aria-label="Job results">
+            <article class="job-card featured">
+              <div>
+                <p class="tag">Featured</p>
+                <h2>Senior DevOps Engineer</h2>
+                <p>ScaleHub Technologies - Hyderabad - Hybrid</p>
+              </div>
+              <ul>
+                <li>Kubernetes, Helm, GitHub Actions</li>
+                <li>18-28 LPA - 5-8 years</li>
+                <li>Posted today</li>
+              </ul>
+              <button type="button">Apply</button>
+            </article>
+            <article class="job-card">
+              <div>
+                <h2>React Developer</h2>
+                <p>BrightLayer Labs - Remote</p>
+              </div>
+              <ul>
+                <li>React, CSS, REST APIs</li>
+                <li>10-16 LPA - 3-5 years</li>
+                <li>Posted yesterday</li>
+              </ul>
+              <button type="button">Apply</button>
+            </article>
+            <article class="job-card">
+              <div>
+                <h2>Cloud Support Associate</h2>
+                <p>Northstar Systems - Noida</p>
+              </div>
+              <ul>
+                <li>AWS, Linux, incident response</li>
+                <li>6-9 LPA - 1-3 years</li>
+                <li>Posted this week</li>
+              </ul>
+              <button type="button">Apply</button>
+            </article>
+          </section>
+
+          <aside class="career-panel">
+            <h2>Career Snapshot</h2>
+            <div class="snapshot-visual" aria-hidden="true">
+              <span style="height: 45%"></span>
+              <span style="height: 65%"></span>
+              <span style="height: 52%"></span>
+              <span style="height: 82%"></span>
+              <span style="height: 70%"></span>
+            </div>
+            <p class="muted">DevOps and frontend roles are seeing the fastest application growth this month.</p>
+            <button type="button">Upload Resume</button>
+          </aside>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
