@@ -1,9 +1,6 @@
 name: Deploy Career Connect
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 env:

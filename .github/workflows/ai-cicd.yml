@@ -1,0 +1,489 @@
+name: AI CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      registry:
+        description: Container registry to push to
+        required: true
+        default: dockerhub
+        type: choice
+        options:
+          - dockerhub
+          - ecr
+
+env:
+  APP_NAME: career-connect
+  CHART_PATH: ./charts/career-connect
+  DEV_NAMESPACE: career-connect-dev
+  QA_NAMESPACE: career-connect-qa
+  PROD_NAMESPACE: career-connect-prod
+
+jobs:
+  ai-code-review-security-scan:
+    name: AI code review and security scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+
+    steps:
+      - name: Developer code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: AI code review with ChatGPT or Codex
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "OPENAI_API_KEY is not configured. Skipping AI code review."
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --unified=0 "origin/${{ github.base_ref }}"...HEAD > code.diff
+          else
+            git show --format=short --unified=0 HEAD > code.diff
+          fi
+
+          if [ ! -s code.diff ]; then
+            echo "No code diff available for AI review."
+            exit 0
+          fi
+
+          DIFF_JSON=$(jq -Rs . < code.diff)
+          jq -n \
+            --arg model "$OPENAI_MODEL" \
+            --argjson diff "$DIFF_JSON" \
+            '{
+              model: $model,
+              messages: [
+                {
+                  role: "system",
+                  content: "You are an AI CI/CD reviewer. Find correctness, security, reliability, and deployment risks. Return concise Markdown with severity and file references when possible."
+                },
+                {
+                  role: "user",
+                  content: ("Review this git diff:\n\n" + $diff)
+                }
+              ],
+              temperature: 0.2
+            }' > ai-review-request.json
+
+          curl -sS https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @ai-review-request.json \
+            | jq -r '.choices[0].message.content // "AI review did not return content."' \
+            | tee ai-code-review.md
+
+      - name: Upload AI review report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-code-review
+          path: ai-code-review.md
+          if-no-files-found: ignore
+
+      - name: GitHub Advanced Security CodeQL scan
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+      - name: Trivy filesystem vulnerability scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
+  build-application:
+    name: Build application
+    runs-on: ubuntu-latest
+    needs: ai-code-review-security-scan
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate static application files
+        run: |
+          test -f public/index.html
+          test -f public/styles.css
+          test -f public/app.js
+          test -f Dockerfile
+          test -f nginx.conf
+
+      - name: Package application artifact
+        run: |
+          mkdir -p dist
+          cp -r public nginx.conf Dockerfile charts dist/
+          tar -czf career-connect-build.tar.gz dist
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: career-connect-build
+          path: career-connect-build.tar.gz
+
+  unit-tests:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    needs: build-application
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: HTML smoke test
+        run: |
+          grep -q "Linkdin Professional Network" public/index.html
+          grep -q "Nakari Job Portal" public/index.html
+          grep -q "Career Connect" public/index.html
+
+      - name: JavaScript syntax test
+        run: node --check public/app.js
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm chart structure test
+        run: |
+          test -f charts/career-connect/Chart.yaml
+          test -f charts/career-connect/values.yaml
+          test -f charts/career-connect/templates/deployment.yaml
+          helm lint charts/career-connect
+
+  docker-image:
+    name: Docker image build and push
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      id-token: write
+
+    outputs:
+      image_repository: ${{ steps.image.outputs.repository }}
+      image_tag: ${{ steps.image.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select image target
+        id: image
+        env:
+          REGISTRY_INPUT: ${{ github.event.inputs.registry || 'dockerhub' }}
+        run: |
+          IMAGE_TAG="${GITHUB_SHA}"
+          if [ "$REGISTRY_INPUT" = "ecr" ]; then
+            if [ -z "${{ secrets.AWS_ACCOUNT_ID }}" ] || [ -z "${{ secrets.AWS_REGION }}" ]; then
+              echo "::error::AWS_ACCOUNT_ID and AWS_REGION secrets are required for ECR pushes."
+              exit 1
+            fi
+            IMAGE_REPOSITORY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${APP_NAME}"
+          else
+            if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+              echo "::error::DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets are required for Docker Hub pushes."
+              exit 1
+            fi
+            IMAGE_REPOSITORY="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${APP_NAME}"
+          fi
+          echo "repository=${IMAGE_REPOSITORY}" >> "$GITHUB_OUTPUT"
+          echo "tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        if: ${{ github.event.inputs.registry == 'ecr' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        if: ${{ github.event.inputs.registry == 'ecr' }}
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Log in to Docker Hub
+        if: ${{ github.event.inputs.registry != 'ecr' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.repository }}:${{ steps.image.outputs.tag }}
+
+      - name: Trivy image vulnerability scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ steps.image.outputs.repository }}:${{ steps.image.outputs.tag }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 1
+
+  deploy-dev:
+    name: Deploy to Dev
+    runs-on: ubuntu-latest
+    needs: docker-image
+    environment: dev
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure remote kubeconfig
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          if [ -z "$KUBE_CONFIG_B64" ]; then
+            echo "::error::Missing KUBE_CONFIG_B64 secret for remote Kubernetes cluster."
+            exit 1
+          fi
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_B64" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Deploy Helm release to Dev
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          kubectl create namespace "$DEV_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          HELM_PULL_SECRET=""
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            kubectl create secret docker-registry dockerhub-pull-secret \
+              --namespace "$DEV_NAMESPACE" \
+              --docker-server=docker.io \
+              --docker-username="$DOCKERHUB_USERNAME" \
+              --docker-password="$DOCKERHUB_TOKEN" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            HELM_PULL_SECRET="--set imagePullSecrets[0].name=dockerhub-pull-secret"
+          fi
+          helm upgrade --install "${APP_NAME}-dev" "$CHART_PATH" \
+            --namespace "$DEV_NAMESPACE" \
+            --create-namespace \
+            --set image.repository="${{ needs.docker-image.outputs.image_repository }}" \
+            --set image.tag="${{ needs.docker-image.outputs.image_tag }}" \
+            $HELM_PULL_SECRET
+          kubectl rollout status "deployment/${APP_NAME}-dev" --namespace "$DEV_NAMESPACE" --timeout=180s
+
+  deploy-test-qa:
+    name: Deploy to Test / QA
+    runs-on: ubuntu-latest
+    needs:
+      - docker-image
+      - deploy-dev
+    environment: qa
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure remote kubeconfig
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          if [ -z "$KUBE_CONFIG_B64" ]; then
+            echo "::error::Missing KUBE_CONFIG_B64 secret for remote Kubernetes cluster."
+            exit 1
+          fi
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_B64" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Deploy Helm release to Test / QA
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          kubectl create namespace "$QA_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          HELM_PULL_SECRET=""
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            kubectl create secret docker-registry dockerhub-pull-secret \
+              --namespace "$QA_NAMESPACE" \
+              --docker-server=docker.io \
+              --docker-username="$DOCKERHUB_USERNAME" \
+              --docker-password="$DOCKERHUB_TOKEN" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            HELM_PULL_SECRET="--set imagePullSecrets[0].name=dockerhub-pull-secret"
+          fi
+          helm upgrade --install "${APP_NAME}-qa" "$CHART_PATH" \
+            --namespace "$QA_NAMESPACE" \
+            --create-namespace \
+            --set image.repository="${{ needs.docker-image.outputs.image_repository }}" \
+            --set image.tag="${{ needs.docker-image.outputs.image_tag }}" \
+            $HELM_PULL_SECRET
+          kubectl rollout status "deployment/${APP_NAME}-qa" --namespace "$QA_NAMESPACE" --timeout=180s
+
+  manual-approval-production:
+    name: Manual approval
+    runs-on: ubuntu-latest
+    needs: deploy-test-qa
+    environment: production-approval
+
+    steps:
+      - name: Await production approval
+        run: echo "Production deployment approved through the GitHub environment gate."
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs:
+      - docker-image
+      - manual-approval-production
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure remote kubeconfig
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          if [ -z "$KUBE_CONFIG_B64" ]; then
+            echo "::error::Missing KUBE_CONFIG_B64 secret for remote Kubernetes cluster."
+            exit 1
+          fi
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_B64" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Deploy Helm release to Production
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          kubectl create namespace "$PROD_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          HELM_PULL_SECRET=""
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+            kubectl create secret docker-registry dockerhub-pull-secret \
+              --namespace "$PROD_NAMESPACE" \
+              --docker-server=docker.io \
+              --docker-username="$DOCKERHUB_USERNAME" \
+              --docker-password="$DOCKERHUB_TOKEN" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            HELM_PULL_SECRET="--set imagePullSecrets[0].name=dockerhub-pull-secret"
+          fi
+          helm upgrade --install "$APP_NAME" "$CHART_PATH" \
+            --namespace "$PROD_NAMESPACE" \
+            --create-namespace \
+            --set image.repository="${{ needs.docker-image.outputs.image_repository }}" \
+            --set image.tag="${{ needs.docker-image.outputs.image_tag }}" \
+            $HELM_PULL_SECRET
+          kubectl rollout status "deployment/${APP_NAME}" --namespace "$PROD_NAMESPACE" --timeout=180s
+
+  ai-log-analysis-monitoring:
+    name: AI log analysis and monitoring
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: always() && github.event_name != 'pull_request'
+
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure remote kubeconfig
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+        run: |
+          if [ -z "$KUBE_CONFIG_B64" ]; then
+            echo "KUBE_CONFIG_B64 is not configured. Skipping Kubernetes log collection."
+            exit 0
+          fi
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG_B64" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Collect production logs
+        continue-on-error: true
+        run: |
+          kubectl logs \
+            --namespace "$PROD_NAMESPACE" \
+            --selector "app.kubernetes.io/name=${APP_NAME}" \
+            --tail=300 \
+            --all-containers=true > production-logs.txt
+
+      - name: AI log analysis with ChatGPT
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ ! -s production-logs.txt ]; then
+            echo "AI log analysis skipped because OPENAI_API_KEY or logs are unavailable."
+            exit 0
+          fi
+
+          LOG_JSON=$(jq -Rs . < production-logs.txt)
+          jq -n \
+            --arg model "$OPENAI_MODEL" \
+            --argjson logs "$LOG_JSON" \
+            '{
+              model: $model,
+              messages: [
+                {
+                  role: "system",
+                  content: "You are an AI production monitoring assistant. Summarize errors, likely causes, and next actions from deployment logs."
+                },
+                {
+                  role: "user",
+                  content: ("Analyze these Kubernetes production logs:\n\n" + $logs)
+                }
+              ],
+              temperature: 0.2
+            }' > ai-log-analysis-request.json
+
+          curl -sS https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @ai-log-analysis-request.json \
+            | jq -r '.choices[0].message.content // "AI log analysis did not return content."' \
+            | tee ai-log-analysis.md
+
+      - name: Upload monitoring reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-log-analysis-monitoring
+          path: |
+            production-logs.txt
+            ai-log-analysis.md
+          if-no-files-found: ignore
