@@ -40,7 +40,7 @@ AI and security integrations:
 | --- | --- |
 | Code suggestion | GitHub Copilot |
 | Code review | ChatGPT / Codex through `OPENAI_API_KEY` |
-| Vulnerability fix suggestion | Trivy, CodeQL, Snyk AI or GitHub Advanced Security |
+| Vulnerability fix suggestion | Trivy in the workflow, with Snyk AI or GitHub Advanced Security optional |
 | Test case generation | Codex / Copilot |
 | Log analysis | ChatGPT through `OPENAI_API_KEY` |
 | Pipeline error fixing | ChatGPT / Codex |
