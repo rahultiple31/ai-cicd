@@ -16,6 +16,24 @@ docker run --rm -p 8080:8080 career-connect:latest
 
 Open `http://127.0.0.1:8080`.
 
+## Local Vagrant Kubernetes Deploy
+
+The `Vagrantfile` creates an Ubuntu 24.04 VM with a single-node k3s Kubernetes cluster, installs Helm and Docker, builds the app image inside the VM, imports it into k3s, and deploys the Helm chart.
+
+```powershell
+vagrant up
+```
+
+Open `http://192.168.56.20:30080`.
+
+Useful commands:
+
+```powershell
+vagrant ssh
+kubectl get nodes,pods,svc -n career-connect -o wide
+vagrant provision
+```
+
 ## AI CI/CD Pipeline
 
 The main GitHub Actions pipeline is `.github/workflows/ai-cicd.yml`.

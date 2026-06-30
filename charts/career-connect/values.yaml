@@ -21,7 +21,6 @@ podLabels: {}
 podSecurityContext:
   fsGroup: 101
   fsGroupChangePolicy: OnRootMismatch
-  runAsGroup: 101
   seccompProfile:
     type: RuntimeDefault
 securityContext:
@@ -30,12 +29,14 @@ securityContext:
     drop:
       - ALL
   readOnlyRootFilesystem: true
+  runAsGroup: 101
   runAsNonRoot: true
   runAsUser: 101
 
 service:
   type: ClusterIP
   port: 80
+  nodePort: null
 
 ingress:
   enabled: false
